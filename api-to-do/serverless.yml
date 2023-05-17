@@ -1,0 +1,111 @@
+service: api-to-do
+
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  timeout: 6
+  environment:
+    DYNAMODB_USERS_TABLE: Users
+    DYNAMODB_TO_DO_TABLE: ToDo
+    JWT_KEY: ${env:JWT_KEY}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:Scan
+        - dynamodb:PutItem
+      Resource: 
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_USERS_TABLE}"
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TO_DO_TABLE}"
+
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+
+resources:
+  Resources:
+    Users:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_USERS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    ToDo:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TO_DO_TABLE}
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+functions:
+  authorizer:
+    handler: src/middlewares/authorizer.handler
+
+  user-create:
+    handler: src/user/userCreate.main
+    events:
+      - http:
+          path: /user/create
+          method: post
+          cors: true
+
+  login:
+    handler: src/login/handler.main
+    events:
+      - http:
+          path: /login
+          method: post
+          cors: true
+
+  to-do-create:
+    handler: src/to-do/todoCreate.main
+    events:
+      - http:
+          path: /to-do/create
+          method: post
+          authorizer: authorizer
+          cors: true
+
+  to-do-read:
+    handler: src/to-do/todoRead.main
+    events:
+      - http:
+          path: /to-do/read
+          method: get
+          authorizer: authorizer
+          cors: true
+
+  to-do-update:
+    handler: src/to-do/todoUpdate.main
+    events:
+      - http:
+          path: /to-do/update/{id}
+          method: put
+          authorizer: authorizer
+          cors: true
+
+  to-do-delete:
+    handler: src/to-do/todoDelete.main
+    events:
+      - http:
+          path: /to-do/delete
+          method: delete
+          authorizer: authorizer
+          cors: true
